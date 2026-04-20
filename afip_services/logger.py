@@ -36,7 +36,7 @@ class LoggerConfig:
 
     def _configure(self) -> None:
         # Crear directorio de logs si no existe
-        log_dir = Path(settings.log_dir_path)
+        log_dir = Path(settings["log_dir_path"])
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Configurar el formateador común
@@ -44,13 +44,13 @@ class LoggerConfig:
 
         # Configurar el logger raíz
         root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG if settings.debug else logging.INFO)
+        root_logger.setLevel(logging.DEBUG if settings["debug"] else logging.INFO)
 
         # Agregar handlers
         self._add_file_handlers(root_logger, log_dir, formatter)
-        if settings.debug:
+        if settings["debug"]:
             self._add_console_handler(root_logger, formatter)
-        if settings.logtail_token and LogtailHandler is not None:
+        if settings["logtail_token"] and LogtailHandler is not None:
             self._add_logtail_handler(root_logger, formatter)
 
     def _get_formatter(self) -> logging.Formatter:
@@ -70,7 +70,7 @@ class LoggerConfig:
             encoding="utf-8",
         )
         process_handler.setFormatter(formatter)
-        process_handler.setLevel(logging.DEBUG if settings.debug else logging.INFO)
+        process_handler.setLevel(logging.DEBUG if settings["debug"] else logging.INFO)
         process_handler.addFilter(lambda record: record.levelno < logging.ERROR)
         root_logger.addHandler(process_handler)
 
@@ -97,9 +97,9 @@ class LoggerConfig:
         self, root_logger: logging.Logger, formatter: logging.Formatter
     ) -> None:
         try:
-            logtail_handler = LogtailHandler(source_token=settings.logtail_token)
+            logtail_handler = LogtailHandler(source_token=settings["logtail_token"])
             logtail_handler.setFormatter(formatter)
-            logtail_handler.setLevel(logging.DEBUG if settings.debug else logging.INFO)
+            logtail_handler.setLevel(logging.DEBUG if settings["debug"] else logging.INFO)
             root_logger.addHandler(logtail_handler)
         except Exception as e:
             root_logger.error(f"Error al inicializar LogtailHandler: {e}")

@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "afip-services"
-version = "0.1.0"
-description = "Python client for AFIP/ARCA SOAP web services (WSAA authentication + WSN padron/inscription queries)."
+version = "0.2.0"
+description = "Python client for AFIP/ARCA SOAP web services (WSAA authentication + WSN padron/inscription queries). Extensible via YAML catalog + handler registry."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [
     { name = "Guido Delponte", email = "guido_delponte@hotmail.com" },
 ]
-keywords = ["afip", "arca", "wsaa", "wsn", "soap", "argentina", "seguros"]
+keywords = ["afip", "arca", "wsaa", "wsn", "soap", "argentina", "seguros", "padron"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -31,6 +31,7 @@ dependencies = [
     "xmltodict>=0.12.0",
     "cryptography>=40.0.0",
     "python-dotenv>=0.21.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -44,3 +45,6 @@ Issues = "https://github.com/GDelpo/afip-services/issues"
 [tool.setuptools.packages.find]
 include = ["afip_services*"]
 exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+afip_services = ["services.yaml"]
