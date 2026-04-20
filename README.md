@@ -25,7 +25,30 @@
 
 ## Quickstart
 
-### Install
+### Install as package (recommended)
+
+```bash
+pip install git+https://github.com/GDelpo/afip-services.git@main
+```
+
+Then use it:
+
+```python
+from afip_services import WSN, WSNService
+
+svc = WSN(
+    WSNService.WS_SR_PADRON_A13,
+    cert_path="cert.crt",
+    key_path="key.key",
+    is_production=True,
+)
+svc.obtain_authorization_ticket()
+data = svc.request_persona_list(["20300000003"])
+```
+
+With Logtail support: `pip install "afip-services[logtail] @ git+https://github.com/GDelpo/afip-services.git@main"`.
+
+### Install from source (development)
 
 ```bash
 git clone https://github.com/GDelpo/afip-services.git
@@ -33,7 +56,7 @@ cd afip-services
 python -m venv env
 source env/bin/activate          # Linux/macOS
 # .\env\Scripts\Activate.ps1     # Windows
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### Configure
@@ -63,19 +86,22 @@ python test.py
 
 ```
 afip-services/
-├── afip_gateway.py   # Orquestador principal
-├── afip_config.py    # Settings por entorno
-├── logger.py         # Logging centralizado
-├── test.py           # Demo / smoke test
-├── services/
-│   └── wsaa_client.py   # Autenticación WSAA
-├── models/
-│   └── ticket.py        # TicketAutorizacion
-└── utils/
-    ├── crypto_utils.py  # Load cert + key
-    ├── signing.py       # Firma XML
-    ├── tra_utils.py     # Construye el TRA
-    └── exceptions.py    # AFIPAuthenticationError, etc.
+├── pyproject.toml            # Empaquetado pip (setuptools)
+├── afip_services/            # Paquete Python instalable
+│   ├── __init__.py           # Reexporta WSN, WSNService, TicketAutorizacion, excepciones
+│   ├── afip_gateway.py       # Orquestador principal (clase WSN)
+│   ├── afip_config.py        # Settings por entorno (enum WSNService)
+│   ├── logger.py             # Logging centralizado (logtail opcional)
+│   ├── services/
+│   │   └── wsaa_client.py    # Autenticación WSAA
+│   ├── models/
+│   │   └── ticket.py         # TicketAutorizacion
+│   └── utils/
+│       ├── crypto_utils.py   # Load cert + key
+│       ├── signing.py        # Firma XML
+│       ├── tra_utils.py      # Construye el TRA
+│       └── exceptions.py     # AFIPAuthenticationError, etc.
+└── test.py                   # Demo / smoke test
 ```
 
 **Stack:** `zeep` para SOAP, `cryptography` para firma digital, `python-dotenv` para config.
