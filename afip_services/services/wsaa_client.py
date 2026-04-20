@@ -1,8 +1,7 @@
 import xmltodict
 import zeep
 
-from logger import get_logger
-
+from ..logger import get_logger
 from ..models.ticket import TicketAutorizacion
 from ..utils.crypto_utils import load_certificate, load_private_key
 from ..utils.exceptions import AFIPAuthenticationError

@@ -1,8 +1,7 @@
 import zeep
 
-from logger import get_logger
-
 from .afip_config import WSNService
+from .logger import get_logger
 from .services.wsaa_client import WSAAClient
 
 logger = get_logger(__name__)

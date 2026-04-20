@@ -1,5 +1,5 @@
 zeep>=4.1.0
 xmltodict>=0.12.0
 cryptography>=40.0.0
-logtail>=1.0.0
 python-dotenv>=0.21.0
+# Optional: logtail-python>=0.2.0  (enable via `pip install afip-services[logtail]`)

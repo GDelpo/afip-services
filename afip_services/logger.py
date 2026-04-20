@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from dotenv import load_dotenv
-from logtail import LogtailHandler
+
+try:
+    from logtail import LogtailHandler  # type: ignore
+except ImportError:  # logtail is an optional extra
+    LogtailHandler = None  # type: ignore
 
 load_dotenv()
 
@@ -46,7 +50,7 @@ class LoggerConfig:
         self._add_file_handlers(root_logger, log_dir, formatter)
         if settings.debug:
             self._add_console_handler(root_logger, formatter)
-        if settings.logtail_token:
+        if settings.logtail_token and LogtailHandler is not None:
             self._add_logtail_handler(root_logger, formatter)
 
     def _get_formatter(self) -> logging.Formatter:

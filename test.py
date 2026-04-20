@@ -1,5 +1,4 @@
-from afip_config import WSNService
-from afip_gateway import WSN
+from afip_services import WSN, WSNService
 
 
 def initialize_services(certificate_path, private_key_path, is_production, passphrase):

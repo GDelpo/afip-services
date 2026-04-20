@@ -4,7 +4,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
-from logger import get_logger
+from ..logger import get_logger
 
 logger = get_logger(__name__)
 

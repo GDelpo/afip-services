@@ -3,7 +3,7 @@ import email
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.serialization import pkcs7
 
-from logger import get_logger
+from ..logger import get_logger
 
 logger = get_logger(__name__)
 
