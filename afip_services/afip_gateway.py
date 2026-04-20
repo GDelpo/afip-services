@@ -1,13 +1,30 @@
+"""WSN gateway — orchestrates WSAA authentication + SOAP calls to AFIP.
+
+The business logic for the padron family ships as built-in handlers
+(``padron_list``, ``padron_single``). Extra service kinds are dispatched
+through the handler registry — see :mod:`afip_services.registry`.
+"""
+
+from __future__ import annotations
+
 import zeep
 
-from .afip_config import WSNService
+from .catalog import WSNService
 from .logger import get_logger
+from .registry import (
+    HandlerNotRegisteredError,
+    get_handler,
+    list_registered_kinds,
+    register_handler,
+)
 from .services.wsaa_client import WSAAClient
 
 logger = get_logger(__name__)
 
 
 class WSN:
+    """High-level client that owns WSAA auth + dispatches service calls."""
+
     def __init__(
         self,
         service: WSNService,
@@ -17,112 +34,140 @@ class WSN:
         passphrase: str | None = None,
     ):
         """
-        Clase que engloba el proceso completo para interactuar con el servicio AFIP.
-
         Args:
-            service (WSNService): Miembro del enum que define la configuración del servicio.
-            cert_path (str): Ruta al certificado AFIP.
-            key_path (str): Ruta a la clave privada.
-            is_production (bool): Indica si se usa el entorno de producción.
-            passphrase (str, opcional): Contraseña de la clave privada, si aplica.
+            service: member of :class:`WSNService` describing the target service.
+            cert_path: path to the AFIP certificate.
+            key_path: path to the private key matching the certificate.
+            is_production: if True, use the production environment.
+            passphrase: optional passphrase for the private key.
         """
-        self.service = service  # Ej: WSNService.WS_SR_CONSTANCIA_INSCRIPCION
-        # Extraemos la configuración del servicio a partir del enum
+        self.service = service
         service_config = service.value
         self.wsaa_client = WSAAClient(
             service_config.service_name, cert_path, key_path, is_production, passphrase
         )
         self.authorization_ticket = None
 
+    # -------- auth --------
+
     def obtain_authorization_ticket(self):
-        """
-        Obtiene el ticket de autorización mediante WSAAClient.
-        """
+        """Obtain a fresh WSAA authorization ticket."""
         logger.info("Obteniendo ticket de autorización...")
         self.wsaa_client.authenticate()
         self.authorization_ticket = self.wsaa_client.get_authorization_ticket()
 
-    def request_afip_dummy(self) -> bool:
-        """
-        Envía una solicitud dummy al servicio AFIP para verificar su operatividad.
+    def _ensure_ticket(self):
+        if not self.authorization_ticket or not self.authorization_ticket.is_valid():
+            self.obtain_authorization_ticket()
 
-        Returns:
-            bool: True si el servicio AFIP responde correctamente, False de lo contrario.
-        """
+    # -------- SOAP operations --------
+
+    def get_wsn_url(self) -> str:
+        """WSDL URL for the current service in the current environment."""
+        env = self.service.get_environment(self.wsaa_client.is_production)
+        return env.wsdl_url
+
+    def _new_client(self) -> zeep.Client:
+        return zeep.Client(wsdl=self.get_wsn_url())
+
+    def request_afip_dummy(self) -> bool:
+        """Ping the service's ``dummy`` method to verify reachability."""
         wsdl_url = self.get_wsn_url()
         logger.info(f"Solicitando dummy a AFIP usando WSDL: {wsdl_url}")
         client = zeep.Client(wsdl=wsdl_url)
         try:
             response = client.service.dummy()
-            is_operational = (
+            return (
                 response["appserver"] == "OK"
                 and response["authserver"] == "OK"
                 and response["dbserver"] == "OK"
             )
-            return is_operational
         except Exception as e:
             logger.exception("Error en dummy de AFIP")
             raise RuntimeError(f"Error when calling AFIP service: {str(e)}")
 
     def request_persona_list(self, persona_ids: list) -> list:
+        """Query a padron-family service for a list of personas.
+
+        Dispatches through the kind-handler registry. Built-in kinds
+        ``padron_list`` and ``padron_single`` are registered below.
         """
-        Solicita una lista de personas desde el servicio AFIP.
+        self._ensure_ticket()
+        client = self._new_client()
+        kind = self.service.value.kind
 
-        Args:
-            persona_ids (list): Lista de IDs de personas a recuperar.
-
-        Returns:
-            list: Lista de diccionarios con cada ID y su información serializada.
-        """
-        if not self.authorization_ticket or not self.authorization_ticket.is_valid():
-            self.obtain_authorization_ticket()
-
-        wsdl_url = self.get_wsn_url()
-        client = zeep.Client(wsdl=wsdl_url)
-        method_name = self.service.get_method_name()
-        personas_list = []
+        handler = get_handler(kind)
+        if handler is None:
+            raise HandlerNotRegisteredError(
+                f"Service '{self.service.name}' declares kind '{kind}' but no "
+                f"handler is registered. Register one with "
+                f"@register_handler('{kind}'). "
+                f"Registered kinds: {list_registered_kinds()}."
+            )
 
         try:
-            if method_name == "getPersonaList_v2":
-                persona_ids_long = [int(pid) for pid in persona_ids]
-                response = client.service.getPersonaList_v2(
-                    token=self.authorization_ticket.token,
-                    sign=self.authorization_ticket.sign,
-                    cuitRepresentada=int(self.authorization_ticket.number_cuit),
-                    idPersona=persona_ids_long,
-                )
-                for i, persona in enumerate(response["persona"]):
-                    serialized_persona = zeep.helpers.serialize_object(persona)
-                    personas_list.append({persona_ids[i]: serialized_persona})
-            else:  # Método "getPersona"
-                for pid in persona_ids:
-                    try:
-                        single_response = client.service.getPersona(
-                            token=self.authorization_ticket.token,
-                            sign=self.authorization_ticket.sign,
-                            cuitRepresentada=int(self.authorization_ticket.number_cuit),
-                            idPersona=int(pid),
-                        )
-                        serialized_persona = zeep.helpers.serialize_object(
-                            single_response["persona"]
-                        )
-                        personas_list.append({pid: serialized_persona})
-                    except Exception as e:
-                        personas_list.append({pid: e})
+            return handler(self, client, persona_ids=persona_ids)
+        except HandlerNotRegisteredError:
+            raise
         except Exception as e:
             logger.exception("Error en request_persona_list")
             raise RuntimeError(f"Error when calling AFIP service: {str(e)}")
-        finally:
-            return personas_list
 
-    def get_wsn_url(self) -> str:
-        """
-        Retorna la URL del WSDL para el servicio actual, según el entorno configurado.
+    # Alias — generic entry point for future callers.
+    def request(self, **kwargs):
+        """Dispatch a generic request to the handler for this service's kind.
 
-        Returns:
-            str: La URL del WSDL.
+        Kept intentionally minimal: the registry handler receives ``self``,
+        the zeep client and every keyword argument passed here.
         """
-        # Se usa el método get_environment del enum para obtener la
-        # configuración del entorno
-        env = self.service.get_environment(self.wsaa_client.is_production)
-        return env.wsdl_url
+        self._ensure_ticket()
+        client = self._new_client()
+        kind = self.service.value.kind
+        handler = get_handler(kind)
+        if handler is None:
+            raise HandlerNotRegisteredError(
+                f"No handler registered for kind '{kind}'. "
+                f"Registered kinds: {list_registered_kinds()}."
+            )
+        return handler(self, client, **kwargs)
+
+
+# =============================================================================
+# Built-in handlers for the padron family.
+# =============================================================================
+
+
+@register_handler("padron_list")
+def _padron_list_handler(wsn: WSN, client: zeep.Client, *, persona_ids: list) -> list:
+    """Batch call — AFIP returns a list in one request (getPersonaList_v2)."""
+    ticket = wsn.authorization_ticket
+    persona_ids_long = [int(pid) for pid in persona_ids]
+    response = client.service.getPersonaList_v2(
+        token=ticket.token,
+        sign=ticket.sign,
+        cuitRepresentada=int(ticket.number_cuit),
+        idPersona=persona_ids_long,
+    )
+    personas = []
+    for i, persona in enumerate(response["persona"]):
+        personas.append({persona_ids[i]: zeep.helpers.serialize_object(persona)})
+    return personas
+
+
+@register_handler("padron_single")
+def _padron_single_handler(wsn: WSN, client: zeep.Client, *, persona_ids: list) -> list:
+    """Per-id call — AFIP only accepts a single id per request (getPersona)."""
+    ticket = wsn.authorization_ticket
+    personas = []
+    for pid in persona_ids:
+        try:
+            response = client.service.getPersona(
+                token=ticket.token,
+                sign=ticket.sign,
+                cuitRepresentada=int(ticket.number_cuit),
+                idPersona=int(pid),
+            )
+            personas.append({pid: zeep.helpers.serialize_object(response["persona"])})
+        except Exception as e:
+            personas.append({pid: e})
+    return personas

@@ -1,0 +1,52 @@
+# Catalog of AFIP web services.
+#
+# Ships with the padron family (inscripción + padrón A13). To add a new
+# service of the same family, copy an entry and change the URLs + names.
+# For AFIP services with a different shape (wsfe, wsmtx, wsfexv1, etc.)
+# declare a new `kind` and register a handler — see afip_services/registry.py.
+#
+# Override the default catalog by setting AFIP_SERVICES_CATALOG to a YAML
+# path, or by calling afip_services.load_catalog(path) at runtime.
+
+services:
+
+  WS_SR_CONSTANCIA_INSCRIPCION:
+    testing_service_url: https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5
+    testing_wsdl_url: https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5?WSDL
+    production_service_url: https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5
+    production_wsdl_url: https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5?WSDL
+    service_name: ws_sr_constancia_inscripcion
+    method_name: getPersonaList_v2
+    kind: padron_list
+
+  WS_SR_PADRON_A13:
+    testing_service_url: https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13
+    testing_wsdl_url: https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL
+    production_service_url: https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13
+    production_wsdl_url: https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL
+    service_name: ws_sr_padron_a13
+    method_name: getPersona
+    kind: padron_single
+
+# Template entries (commented out) — uncomment and edit to add more padron-family services:
+#
+#   WS_SR_PADRON_A4:
+#     testing_service_url: https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA4
+#     testing_wsdl_url: https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA4?WSDL
+#     production_service_url: https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA4
+#     production_wsdl_url: https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA4?WSDL
+#     service_name: ws_sr_padron_a4
+#     method_name: getPersona          # check the WSDL to confirm method shape
+#     kind: padron_single              # or padron_list if it accepts lists
+#
+# For AFIP services with non-padron shapes (wsfe, wsmtx, wsfexv1, wsbfev1, …)
+# declare them with a custom `kind` and register a handler:
+#
+#   WSFE:
+#     testing_service_url: https://wswhomo.afip.gov.ar/wsfev1/service.asmx
+#     testing_wsdl_url: https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL
+#     production_service_url: https://servicios1.afip.gov.ar/wsfev1/service.asmx
+#     production_wsdl_url: https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL
+#     service_name: wsfe
+#     method_name: FECAESolicitar
+#     kind: factura_electronica        # custom kind — requires @register_handler
