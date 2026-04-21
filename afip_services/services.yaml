@@ -18,6 +18,8 @@ services:
     service_name: ws_sr_constancia_inscripcion
     method_name: getPersonaList_v2
     kind: padron_list
+    slug: inscription
+    description: AFIP Constancia de Inscripción (bulk query — multiple CUITs per call)
 
   WS_SR_PADRON_A13:
     testing_service_url: https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13
@@ -27,6 +29,8 @@ services:
     service_name: ws_sr_padron_a13
     method_name: getPersona
     kind: padron_single
+    slug: padron
+    description: AFIP Padrón A13 (single query — one CUIT per call, loops internally)
 
 # Template entries (commented out) — uncomment and edit to add more padron-family services:
 #
