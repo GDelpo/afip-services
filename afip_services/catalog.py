@@ -35,6 +35,8 @@ class ServiceConfig:
     service_name: str      # used to create the TRA XML for WSAA
     method_name: str       # remote method invoked on the SOAP endpoint
     kind: str              # dispatch key used by the handler registry
+    slug: str              # public route slug (used by afip-services-api)
+    description: str = ""  # free-text summary shown in OpenAPI / docs
 
     def get_environment(self, is_production: bool) -> ServiceEnvironment:
         return self.production if is_production else self.testing
@@ -56,7 +58,14 @@ def _read_yaml(path: Path) -> dict:
         return yaml.safe_load(fh) or {}
 
 
-def _build_config(entry: dict) -> ServiceConfig:
+def _derive_slug(name: str) -> str:
+    """Fallback slug when a YAML entry omits ``slug``."""
+    s = name.lower().replace("_", "-")
+    # Trim the AFIP-wide ``ws-sr-`` prefix for cleaner URLs.
+    return s.removeprefix("ws-sr-") if s.startswith("ws-sr-") else s
+
+
+def _build_config(entry: dict, name: str) -> ServiceConfig:
     return ServiceConfig(
         testing=ServiceEnvironment(
             service_url=entry["testing_service_url"],
@@ -69,6 +78,8 @@ def _build_config(entry: dict) -> ServiceConfig:
         service_name=entry["service_name"],
         method_name=entry["method_name"],
         kind=entry.get("kind", "padron_list"),
+        slug=entry.get("slug") or _derive_slug(name),
+        description=entry.get("description", ""),
     )
 
 
@@ -83,7 +94,7 @@ def load_catalog(path: str | os.PathLike | None = None) -> dict[str, ServiceConf
         path = Path(env_path) if env_path else _default_catalog_path()
     raw = _read_yaml(Path(path))
     services = raw.get("services", {}) or {}
-    return {name: _build_config(entry) for name, entry in services.items()}
+    return {name: _build_config(entry, name) for name, entry in services.items()}
 
 
 # Loaded once at import time. Callers who want to re-load with a different
