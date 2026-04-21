@@ -35,18 +35,18 @@ class LoggerConfig:
         return cls._instance
 
     def _configure(self) -> None:
-        # Crear directorio de logs si no existe
+        # Create log directory if it doesn't exist
         log_dir = Path(settings["log_dir_path"])
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Configurar el formateador común
+        # Configure the shared formatter
         formatter = self._get_formatter()
 
-        # Configurar el logger raíz
+        # Configure the root logger
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.DEBUG if settings["debug"] else logging.INFO)
 
-        # Agregar handlers
+        # Add handlers
         self._add_file_handlers(root_logger, log_dir, formatter)
         if settings["debug"]:
             self._add_console_handler(root_logger, formatter)
@@ -62,7 +62,7 @@ class LoggerConfig:
     def _add_file_handlers(
         self, root_logger: logging.Logger, log_dir: Path, formatter: logging.Formatter
     ) -> None:
-        # Handler para logs de proceso
+        # Handler for process logs
         process_handler = RotatingFileHandler(
             filename=log_dir / "process.log",
             maxBytes=10_000_000,  # 10MB
@@ -74,7 +74,7 @@ class LoggerConfig:
         process_handler.addFilter(lambda record: record.levelno < logging.ERROR)
         root_logger.addHandler(process_handler)
 
-        # Handler para logs de error
+        # Handler for error logs
         error_handler = RotatingFileHandler(
             filename=log_dir / "error.log",
             maxBytes=10_000_000,  # 10MB
@@ -102,13 +102,13 @@ class LoggerConfig:
             logtail_handler.setLevel(logging.DEBUG if settings["debug"] else logging.INFO)
             root_logger.addHandler(logtail_handler)
         except Exception as e:
-            root_logger.error(f"Error al inicializar LogtailHandler: {e}")
+            root_logger.error(f"Error initializing LogtailHandler: {e}")
 
     def get_logger(self, name: str) -> logging.Logger:
-        """Obtener una instancia de logger por nombre."""
+        """Obtain a logger instance by name."""
         if name not in self._loggers:
             logger = logging.getLogger(name)
-            # Agregar información contextual
+            # Add contextual information
             logger = logging.LoggerAdapter(
                 logger,
                 {"timestamp": datetime.now().isoformat(), "process_id": os.getpid()},
@@ -117,10 +117,10 @@ class LoggerConfig:
         return self._loggers[name]
 
 
-# Instancia singleton
+# Singleton instance
 logger_config = LoggerConfig()
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Función de conveniencia para obtener una instancia de logger."""
+    """Convenience function to obtain a logger instance."""
     return logger_config.get_logger(name)

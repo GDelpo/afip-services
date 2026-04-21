@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 
 def sign_tra(tra_xml: str, certificate, private_key) -> str:
-    logger.info("Iniciando la firma del TRA")
+    logger.info("Starting TRA signing")
     try:
         cms = (
             pkcs7.PKCS7SignatureBuilder()
@@ -17,14 +17,14 @@ def sign_tra(tra_xml: str, certificate, private_key) -> str:
             .add_signer(certificate, private_key, hashes.SHA256())
             .sign(serialization.Encoding.SMIME, [pkcs7.PKCS7Options.Binary])
         )
-        logger.debug("Firma CMS generada correctamente")
+        logger.debug("CMS signature generated successfully")
         msg = email.message_from_string(cms.decode("utf8"))
         for part in msg.walk():
             if part.get_filename() and part.get_filename().startswith("smime.p7"):
-                logger.info("Parte CMS encontrada en el mensaje")
+                logger.info("CMS part found in the message")
                 return part.get_payload(decode=False)
-        logger.error("No se encontró la parte CMS en el mensaje")
+        logger.error("CMS part not found in the message")
         raise RuntimeError("CMS part not found")
     except Exception as e:
-        logger.exception("Error al firmar el TRA")
+        logger.exception("Error signing TRA")
         raise RuntimeError(f"Error when signing TRA: {str(e)}")

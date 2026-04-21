@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 def create_tra_xml(service_name: str, delta_minutes: int = 10) -> str:
     logger.info(
-        f"Creando XML TRA para el servicio: {service_name} con delta_minutes: {delta_minutes}"
+        f"Creating TRA XML for service: {service_name} with delta_minutes: {delta_minutes}"
     )
     start_time = dt.datetime.now() - dt.timedelta(minutes=delta_minutes)
     end_time = start_time + dt.timedelta(minutes=2 * delta_minutes)
@@ -26,5 +26,5 @@ def create_tra_xml(service_name: str, delta_minutes: int = 10) -> str:
         }
     }
     xml_result = xmltodict.unparse(tra_data, pretty=True)
-    logger.info("XML TRA creado exitosamente")
+    logger.info("TRA XML created successfully")
     return xml_result
