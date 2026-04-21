@@ -63,16 +63,16 @@ if __name__ == "__main__":
         certificate_path, private_key_path, is_production, passphrase
     )
 
-    # Example CUITs LIMITE MAXIMO 250
+    # Example CUITs — MAX LIMIT 250
     cuits = ["NRO CUIT"]
 
     # Status services
     print(status_services(wsn_inscription_service, wsn_padron_service))
 
-    # Get constancia inscripcion
+    # Get constancia inscripcion (AFIP domain: inscription certificate)
     list_of_data_retrived = wsn_inscription_service.request_persona_list(cuits)
     print(list_of_data_retrived)
 
-    # Get padron
+    # Get padron (AFIP domain: taxpayer registry)
     list_of_data_retrived = wsn_padron_service.request_persona_list(cuits)
     print(list_of_data_retrived)

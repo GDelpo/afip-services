@@ -52,7 +52,7 @@ class WSN:
 
     def obtain_authorization_ticket(self):
         """Obtain a fresh WSAA authorization ticket."""
-        logger.info("Obteniendo ticket de autorización...")
+        logger.info("Obtaining authorization ticket...")
         self.wsaa_client.authenticate()
         self.authorization_ticket = self.wsaa_client.get_authorization_ticket()
 
@@ -73,7 +73,7 @@ class WSN:
     def request_afip_dummy(self) -> bool:
         """Ping the service's ``dummy`` method to verify reachability."""
         wsdl_url = self.get_wsn_url()
-        logger.info(f"Solicitando dummy a AFIP usando WSDL: {wsdl_url}")
+        logger.info(f"Requesting AFIP dummy using WSDL: {wsdl_url}")
         client = zeep.Client(wsdl=wsdl_url)
         try:
             response = client.service.dummy()
@@ -83,7 +83,7 @@ class WSN:
                 and response["dbserver"] == "OK"
             )
         except Exception as e:
-            logger.exception("Error en dummy de AFIP")
+            logger.exception("Error in AFIP dummy")
             raise RuntimeError(f"Error when calling AFIP service: {str(e)}")
 
     def request_persona_list(self, persona_ids: list) -> list:
@@ -110,7 +110,7 @@ class WSN:
         except HandlerNotRegisteredError:
             raise
         except Exception as e:
-            logger.exception("Error en request_persona_list")
+            logger.exception("Error in request_persona_list")
             raise RuntimeError(f"Error when calling AFIP service: {str(e)}")
 
     # Alias — generic entry point for future callers.
