@@ -1,78 +1,44 @@
+"""Live smoke test against AFIP: service status plus a lookup of the CUITs given as arguments.
+
+Needs a real AFIP certificate. Reads the same variables as .env.example:
+CERTIFICATE_PATH, PRIVATE_KEY_PATH, PASSPHRASE (optional) and IS_PRODUCTION.
+
+    python examples/smoke.py 20111111112 [more CUITs...]
+"""
+
+import os
+import sys
+
+from dotenv import load_dotenv
+
 from afip_services import WSN, WSNService
 
+MAX_IDS = 250  # AFIP limit per getPersonaList_v2 call
 
-def initialize_services(certificate_path, private_key_path, is_production, passphrase):
-    wsn_inscription_service = WSN(
-        WSNService.WS_SR_CONSTANCIA_INSCRIPCION,
-        certificate_path,
-        private_key_path,
-        is_production,
-        passphrase,
+
+def build(service: WSNService) -> WSN:
+    return WSN(
+        service,
+        os.environ["CERTIFICATE_PATH"],
+        os.environ["PRIVATE_KEY_PATH"],
+        os.getenv("IS_PRODUCTION", "true").lower() in ("true", "1", "yes"),
+        os.getenv("PASSPHRASE") or None,
     )
-    wsn_inscription_service.obtain_authorization_ticket()
-
-    wsn_padron_service = WSN(
-        WSNService.WS_SR_PADRON_A13,
-        certificate_path,
-        private_key_path,
-        is_production,
-        passphrase,
-    )
-    wsn_padron_service.obtain_authorization_ticket()
-
-    return wsn_inscription_service, wsn_padron_service
 
 
-def status_services(wsn_inscription_service, wsn_padron_service) -> str:
-
-    def get_status(service, service_name):
+def main(cuits: list[str]) -> None:
+    if not 1 <= len(cuits) <= MAX_IDS:
+        sys.exit(f"usage: python examples/smoke.py CUIT [CUIT ...]  (1 to {MAX_IDS} CUITs)")
+    for service in (WSNService.WS_SR_CONSTANCIA_INSCRIPCION, WSNService.WS_SR_PADRON_A13):
+        wsn = build(service)
         try:
-            return "UP" if service.request_afip_dummy() else "DOWN"
-        except Exception as e:
-            return f"Error: {e}"
-
-    inscription_status = get_status(wsn_inscription_service, "WSN Inscription Service")
-    padron_status = get_status(wsn_padron_service, "WSN Padron Service")
-
-    output = (
-        f"WSN Inscription Service: {inscription_status}\n"
-        f"WSN Padron Service: {padron_status}"
-    )
-    return output
+            status = "UP" if wsn.request_afip_dummy() else "DOWN"
+        except RuntimeError as exc:
+            status = f"error: {exc}"
+        print(f"{service.name}: {status}")
+        print(wsn.request_persona_list(cuits))
 
 
 if __name__ == "__main__":
-
-    # Variables for init services. Can be set in a config file .env or similar -> Look into logger.py and set settings | You can use the .env-example file
-    # from dotenv import load_dotenv
-    # import os
-    # load_dotenv()
-    # os.getenv("CERTIFICATE_PATH")
-    certificate_path = "path/to/certificate.crt"
-    # os.getenv("PRIVATE_KEY_PATH")
-    private_key_path = "path/to/private_key.key"
-    is_production = (
-        # os.getenv("DEBUG") | False for testing -> NOT WORKING IN TEST MODE
-        # AFIP | ARCA PROBLEM
-        True
-    )
-    passphrase = "passphrase"  # os.getenv("PASSPHRASE")
-
-    # Initialize services
-    wsn_inscription_service, wsn_padron_service = initialize_services(
-        certificate_path, private_key_path, is_production, passphrase
-    )
-
-    # Example CUITs — MAX LIMIT 250
-    cuits = ["NRO CUIT"]
-
-    # Status services
-    print(status_services(wsn_inscription_service, wsn_padron_service))
-
-    # Get constancia inscripcion (AFIP domain: inscription certificate)
-    list_of_data_retrived = wsn_inscription_service.request_persona_list(cuits)
-    print(list_of_data_retrived)
-
-    # Get padron (AFIP domain: taxpayer registry)
-    list_of_data_retrived = wsn_padron_service.request_persona_list(cuits)
-    print(list_of_data_retrived)
+    load_dotenv()
+    main(sys.argv[1:])

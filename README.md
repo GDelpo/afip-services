@@ -3,35 +3,36 @@
 <p>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="Status" src="https://img.shields.io/badge/status-stable-green">
   <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-blueviolet">
 </p>
 
-> Cliente Python para los web services SOAP de AFIP/ARCA: autenticación WSAA + llamadas a la familia `padron`/`inscripción`. **Extensible** vía catálogo YAML y registry de handlers para nuevos servicios (wsfe, wsmtx, wsfexv1, …).
+> Python client for the AFIP/ARCA SOAP web services: WSAA authentication plus the padron / constancia de inscripción queries, extensible through a YAML catalog and a handler registry.
 
 ## Features
 
-- Autenticación WSAA: obtención, cache y renovación de tickets.
-- Llamadas SOAP `dummy` y consultas de personas (list batch o single-by-id).
-- **YAML catalog** — agregar un servicio padron-family = editar `services.yaml`.
-- **Handler registry** — nuevos *kinds* de servicio se inscriben con `@register_handler("mi_kind")`. Hook vacío listo para cuando quieras implementar wsfe u otros.
-- Manejo de certificado digital + firma XML (`cryptography` + `zeep`).
-- Logging con rotating file handlers + Logtail opcional.
-- Diseño modular: `afip_gateway.py` orquesta, `catalog.py` lee el YAML, `registry.py` es el extension point, `services/wsaa_client.py` autentica.
+- WSAA authentication: signs the login ticket request (TRA) with your certificate, gets the ticket and renews it when it expires.
+- `dummy` health calls and persona lookups, in batch (`getPersonaList_v2`) or one id per call (`getPersona`).
+- **YAML catalog**: adding a padron-family service means editing `services.yaml`.
+- **Handler registry**: new service kinds plug in with `@register_handler("my_kind")`.
+- Rotating file logs, console output in debug mode and optional Logtail. Token and sign are never logged.
 
 ## Requirements
 
 - Python 3.10+
-- **Certificado digital y clave privada AFIP** registrados y activos.
-- Acceso de red a los endpoints AFIP (`wsaa.afip.gov.ar` para prod, homologación para testing).
+- An AFIP digital certificate and its private key, registered and active for the services you call.
+- Network access to the AFIP endpoints (`wsaa.afip.gov.ar` in production, `wsaahomo.afip.gov.ar` in testing).
 
 ## Quickstart
 
-### Install as package (recommended)
+### Install
 
 ```bash
 pip install git+https://github.com/GDelpo/afip-services.git@main
 ```
+
+With Logtail support: `pip install "afip-services[logtail] @ git+https://github.com/GDelpo/afip-services.git@main"`.
+
+### Use
 
 ```python
 from afip_services import WSN, WSNService
@@ -41,37 +42,68 @@ svc = WSN(
     cert_path="cert.crt",
     key_path="key.key",
     is_production=True,
+    passphrase=None,
 )
-svc.obtain_authorization_ticket()
-data = svc.request_persona_list(["20300000000"])
+data = svc.request_persona_list(["20111111112"])  # example CUIT
 ```
 
-With Logtail support: `pip install "afip-services[logtail] @ git+https://github.com/GDelpo/afip-services.git@main"`.
+`request_persona_list` gets a ticket on the first call and a new one once it expires.
 
-### Install from source (development)
+### Result format
+
+One `{id: data}` dict per requested id, in the order you asked for them, keyed by the id exactly as you passed it:
+
+```python
+[
+    {"20111111112": {"datosGenerales": {"idPersona": 20111111112, ...}}},
+    {"20222222223": {"error": "not returned by AFIP"}},
+]
+```
+
+- `padron_list` services match each answer to its id through `idPersona` (in `datosGenerales`, or in `errorConstancia` when AFIP rejects the id). An id AFIP did not answer gets `{"error": "not returned by AFIP"}`. An answer without `idPersona` raises `AFIPRequestError` instead of being guessed.
+- `padron_single` services call AFIP once per id. A failed call becomes `{"error": "<message>"}` and the rest of the batch goes on.
+
+Every value is plain data, so the result can go straight to `json.dumps`.
+
+### Live smoke test
+
+`examples/smoke.py` checks both built-in services against AFIP and looks up the CUITs you pass. It needs a real certificate:
 
 ```bash
 git clone https://github.com/GDelpo/afip-services.git
 cd afip-services
 python -m venv env
-source env/bin/activate          # Linux/macOS
-# .\env\Scripts\Activate.ps1     # Windows
+source env/bin/activate          # Windows: .\env\Scripts\Activate.ps1
 pip install -e .
+cp .env.example .env             # then set the certificate paths
+python examples/smoke.py 20111111112
 ```
 
-### Configure
+## Configuration
 
-```bash
-cp .env.example .env
-# Editar .env con tu cert, key y entorno
-python test.py   # smoke test contra AFIP
-```
+The library reads these from the environment. In a source checkout, a `.env` at the repo root is picked up too.
 
-## Extending — two levels of effort
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_DIR_PATH` | `logs` | Folder for `process.log` and `error.log`, created at import time. |
+| `DEBUG` | `False` | `true` turns on DEBUG level and console output. |
+| `LOGTAIL_TOKEN` | — | Sends logs to Logtail. Needs the `logtail` extra. |
+| `AFIP_SERVICES_CATALOG` | packaged `services.yaml` | Path to a YAML catalog that replaces the default one. |
 
-### Level 1 · Add a padron-family service (YAML only)
+`examples/smoke.py` also reads the variables below. The library itself takes these values as arguments to `WSN`.
 
-The padron family (A4 / A5 / A10 / A13 / constancia de inscripción) share the same request/response shape: *CUITs in → personas out*. Adding one = editing `afip_services/services.yaml`:
+| Variable | Description |
+|----------|-------------|
+| `CERTIFICATE_PATH` | AFIP certificate (`.crt` / `.pem`). |
+| `PRIVATE_KEY_PATH` | Private key matching the certificate. |
+| `PASSPHRASE` | Private key passphrase, if any. |
+| `IS_PRODUCTION` | `true` (default) for production, `false` for testing (homologación). |
+
+## Extending
+
+### Level 1: add a padron-family service (YAML only)
+
+The padron family (A4, A5, A10, A13, constancia de inscripción) shares one shape: CUITs in, personas out. Add an entry to `afip_services/services.yaml`:
 
 ```yaml
 services:
@@ -82,16 +114,14 @@ services:
     production_wsdl_url: https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA4?WSDL
     service_name: ws_sr_padron_a4
     method_name: getPersona
-    kind: padron_single     # or padron_list — see the WSDL
+    kind: padron_single     # or padron_list; check the WSDL
 ```
 
-No Python code needed — `WSNService.WS_SR_PADRON_A4` is auto-generated at import time.
+`WSNService.WS_SR_PADRON_A4` is generated at import time. To use your own catalog without forking, set `AFIP_SERVICES_CATALOG=/path/to/your.yaml` or call `afip_services.reload_catalog(path)`.
 
-Override the default catalog without forking: set `AFIP_SERVICES_CATALOG=/path/to/your.yaml` or call `afip_services.reload_catalog(path)` at runtime.
+### Level 2: add a non-padron service (custom handler)
 
-### Level 2 · Add a non-padron service (custom handler)
-
-Services like `wsfe` (facturación electrónica), `wsmtx`, `wsfexv1` have different shapes. Declare them with a custom `kind`:
+Services such as `wsfe` (electronic invoicing), `wsmtx` or `wsfexv1` have other shapes. Declare them with a custom `kind`:
 
 ```yaml
 services:
@@ -105,10 +135,11 @@ services:
     kind: factura_electronica
 ```
 
-Then register a handler anywhere in your code before calling `WSN.request(…)`:
+Then register a handler before calling `WSN.request(...)`:
 
 ```python
 from afip_services import register_handler
+
 
 @register_handler("factura_electronica")
 def wsfe_handler(wsn, client, **kwargs):
@@ -119,46 +150,43 @@ def wsfe_handler(wsn, client, **kwargs):
     )
 ```
 
-The built-in kinds shipped with the package are `padron_list` and `padron_single`. Everything else requires a handler — the package raises `HandlerNotRegisteredError` with a clear message if a call is made without one registered.
+The package ships the `padron_list` and `padron_single` kinds. Calling a service whose kind has no handler raises `HandlerNotRegisteredError`.
 
-## Configuration (.env)
+## Tests
 
-| Variable | Descripción |
-|----------|-------------|
-| `AFIP_CERT_PATH` | Path al certificado `.crt`/`.pem` |
-| `AFIP_KEY_PATH` | Path a la clave privada |
-| `AFIP_SERVICE_NAME` | Servicio AFIP a autenticar (ej. `ws_sr_padron_a5`) |
-| `LOG_DIR_PATH` | Directorio de logs (default `logs/`) |
-| `DEBUG` | `true` activa logging DEBUG + consola |
-| `LOGTAIL_TOKEN` | Opcional |
-| `AFIP_SERVICES_CATALOG` | Opcional — path a un YAML custom que reemplaza el default |
+```bash
+pip install -r requirements-dev.txt -e .
+ruff check . && ruff format --check .
+pytest
+```
+
+The suite runs offline and covers the catalog and registry, the TRA XML, ticket parsing, CMS signing with a self-signed certificate the test generates, and both padron handlers against a fake SOAP client. CI runs it on Python 3.10 and 3.14. None of it talks to AFIP; `examples/smoke.py` does that.
 
 ## Architecture
 
 ```
 afip-services/
-├── pyproject.toml                 # Empaquetado pip (setuptools)
-├── afip_services/                 # Paquete Python instalable
-│   ├── __init__.py                # Re-exporta el API público
-│   ├── services.yaml              # ← catálogo de servicios (editable)
-│   ├── catalog.py                 # Loader + Enum dinámico
-│   ├── registry.py                # Hook para kinds custom (@register_handler)
-│   ├── afip_gateway.py            # Clase WSN + built-in padron handlers
-│   ├── afip_config.py             # Re-export compat con versiones previas
-│   ├── logger.py                  # Logging centralizado (logtail opcional)
-│   ├── services/wsaa_client.py    # Autenticación WSAA
+├── pyproject.toml                 # packaging (setuptools), ruff and pytest config
+├── afip_services/
+│   ├── __init__.py                # public API
+│   ├── services.yaml              # service catalog (editable)
+│   ├── catalog.py                 # YAML loader + dynamic WSNService enum
+│   ├── registry.py                # @register_handler for custom kinds
+│   ├── afip_gateway.py            # WSN class + built-in padron handlers
+│   ├── afip_config.py             # backwards-compatible re-exports
+│   ├── logger.py                  # logging setup (Logtail optional)
+│   ├── services/wsaa_client.py    # WSAA authentication
 │   ├── models/ticket.py           # TicketAutorizacion
-│   └── utils/                     # crypto, signing, TRA, exceptions
-└── test.py                        # Demo / smoke test
+│   └── utils/                     # certificate loading, signing, TRA, exceptions
+├── examples/smoke.py              # live check against AFIP
+└── tests/                         # offline pytest suite
 ```
 
-**Stack:** `zeep` (SOAP), `cryptography` (firma digital), `pyyaml` (catalog), `python-dotenv` (config).
+**Stack:** `zeep` (SOAP), `cryptography` (CMS signing), `xmltodict`, `pyyaml` (catalog), `python-dotenv`.
 
 ## Related
 
-- [`afip-services-api`](https://github.com/GDelpo/afip-services-api) — FastAPI REST que expone este cliente con JWT + rate limiting.
-- [`afip-services-applied`](https://github.com/GDelpo/afip-services-applied) — ejemplo de consumer que llama a la API.
-- [`afip-iva-checker`](https://github.com/GDelpo/afip-iva-checker) — app que procesa libros IVA usando estos servicios.
+- [`afip-services-api`](https://github.com/GDelpo/afip-services-api): FastAPI service that exposes this client over REST.
 
 ## License
 

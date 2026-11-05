@@ -30,3 +30,8 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# AFIP certificate and private key, never committed
+*.key
+*.crt
+*.pem

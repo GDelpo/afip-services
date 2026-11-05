@@ -48,3 +48,13 @@ exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 afip_services = ["services.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

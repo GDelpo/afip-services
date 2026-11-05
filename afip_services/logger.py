@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -20,13 +20,14 @@ load_dotenv()
 settings = {
     "log_dir_path": os.getenv("LOG_DIR_PATH", "logs"),
     "debug": os.getenv("DEBUG", "False").lower() in ["true", "1", "yes"],
-    "logtail_token": os.getenv("LOGTAIL_TOKEN", "your-logtail-token"),
+    # INTENTIONAL: no placeholder default; any non-empty value would turn Logtail on.
+    "logtail_token": os.getenv("LOGTAIL_TOKEN") or None,
 }
 
 
 class LoggerConfig:
     _instance: Optional["LoggerConfig"] = None
-    _loggers: Dict[str, logging.Logger] = {}
+    _loggers: dict[str, logging.Logger] = {}
 
     def __new__(cls) -> "LoggerConfig":
         if cls._instance is None:

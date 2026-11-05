@@ -13,18 +13,14 @@ class TicketAutorizacion:
         credentials = login_ticket_response.get("credentials", {})
         header = login_ticket_response.get("header", {})
 
+        # INTENTIONAL: token and sign are credentials; they are never logged.
         self.token = credentials.get("token")
         self.sign = credentials.get("sign")
-        logger.debug(f"Token obtained: {self.token}")
-        logger.debug(f"Sign obtained: {self.sign}")
 
         expiration_str = header.get("expirationTime")
         try:
             self.expiration_time = dt.datetime.fromisoformat(expiration_str)
-            logger.debug(
-                f"Expiration time parsed successfully: {
-                    self.expiration_time}"
-            )
+            logger.debug(f"Expiration time parsed successfully: {self.expiration_time}")
         except Exception as e:
             logger.exception(f"Error parsing expirationTime: {expiration_str}")
             raise e
@@ -47,16 +43,16 @@ class TicketAutorizacion:
         current_time = dt.datetime.now(dt.timezone.utc).astimezone()
         valid = current_time < self.expiration_time
         logger.debug(
-            f"Checking ticket validity: now = {current_time}, expiration = {
-                self.expiration_time}, is_valid = {valid}"
+            f"Checking ticket validity: now = {current_time}, "
+            f"expiration = {self.expiration_time}, is_valid = {valid}"
         )
         return valid
 
     def __str__(self) -> str:
-        logger.debug("Generating string representation of TicketAutorizacion")
+        # INTENTIONAL: masked, so printing or logging a ticket never leaks token/sign.
         return (
-            f"Token: {self.token}\n"
-            f"Sign: {self.sign}\n"
+            "Token: ***\n"
+            "Sign: ***\n"
             f"Expiration Time: {self.expiration_time}\n"
             f"CUIT: {self.number_cuit}"
         )

@@ -15,9 +15,7 @@ def load_certificate(certificate_path: str):
         logger.error(f"Certificate file not found: {certificate_path}")
         raise FileNotFoundError(f"Certificate file not found: {certificate_path}")
     with open(certificate_path, "rb") as cert_file:
-        certificate = x509.load_pem_x509_certificate(
-            cert_file.read(), backend=default_backend()
-        )
+        certificate = x509.load_pem_x509_certificate(cert_file.read(), backend=default_backend())
     logger.info("Certificate loaded successfully")
     return certificate
 

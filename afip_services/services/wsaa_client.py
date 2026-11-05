@@ -26,17 +26,13 @@ class WSAAClient:
             self.certificate = load_certificate(certificate_path)
             logger.info("Certificate loaded successfully")
         except Exception as e:
-            logger.exception(
-                f"Error loading certificate from: {certificate_path}"
-            )
+            logger.exception(f"Error loading certificate from: {certificate_path}")
             raise e
         try:
             self.private_key = load_private_key(private_key_path, passphrase)
             logger.info("Private key loaded successfully")
         except Exception as e:
-            logger.exception(
-                f"Error loading private key from: {private_key_path}"
-            )
+            logger.exception(f"Error loading private key from: {private_key_path}")
             raise e
         self.is_production = is_production
         self.authorization = None
@@ -51,7 +47,7 @@ class WSAAClient:
             return xmltodict.parse(response)
         except Exception as e:
             logger.exception("Error calling AFIP service")
-            raise AFIPAuthenticationError(f"Error when calling AFIP service: {str(e)}")
+            raise AFIPAuthenticationError(f"Error when calling AFIP service: {e}") from e
 
     def get_wsdl_url(self) -> str:
         if self.is_production:
@@ -71,10 +67,7 @@ class WSAAClient:
             self.authorization = self.request_afip_authorization(signed_cms)
             logger.info("Authentication completed successfully")
         except Exception as e:
-            logger.exception(
-                f"Error during authentication process {
-                    str(e)}"
-            )
+            logger.exception(f"Error during authentication process {e}")
             raise
 
     def get_authorization_ticket(self):

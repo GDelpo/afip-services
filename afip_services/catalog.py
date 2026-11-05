@@ -9,11 +9,11 @@ overridden by setting the ``AFIP_SERVICES_CATALOG`` env var or calling
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from importlib import resources
 from pathlib import Path
-from typing import Iterable
 
 import yaml
 
@@ -32,10 +32,10 @@ class ServiceConfig:
 
     testing: ServiceEnvironment
     production: ServiceEnvironment
-    service_name: str      # used to create the TRA XML for WSAA
-    method_name: str       # remote method invoked on the SOAP endpoint
-    kind: str              # dispatch key used by the handler registry
-    slug: str              # public route slug (used by afip-services-api)
+    service_name: str  # used to create the TRA XML for WSAA
+    method_name: str  # remote method invoked on the SOAP endpoint
+    kind: str  # dispatch key used by the handler registry
+    slug: str  # public route slug (used by afip-services-api)
     description: str = ""  # free-text summary shown in OpenAPI / docs
 
     def get_environment(self, is_production: bool) -> ServiceEnvironment:
@@ -54,7 +54,7 @@ def _default_catalog_path() -> Path:
 
 
 def _read_yaml(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
 
 

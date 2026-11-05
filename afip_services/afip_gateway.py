@@ -8,6 +8,7 @@ through the handler registry — see :mod:`afip_services.registry`.
 from __future__ import annotations
 
 import zeep
+import zeep.helpers
 
 from .catalog import WSNService
 from .logger import get_logger
@@ -18,6 +19,7 @@ from .registry import (
     register_handler,
 )
 from .services.wsaa_client import WSAAClient
+from .utils.exceptions import AFIPRequestError
 
 logger = get_logger(__name__)
 
@@ -84,7 +86,7 @@ class WSN:
             )
         except Exception as e:
             logger.exception("Error in AFIP dummy")
-            raise RuntimeError(f"Error when calling AFIP service: {str(e)}")
+            raise RuntimeError(f"Error when calling AFIP service: {e}") from e
 
     def request_persona_list(self, persona_ids: list) -> list:
         """Query a padron-family service for a list of personas.
@@ -111,7 +113,7 @@ class WSN:
             raise
         except Exception as e:
             logger.exception("Error in request_persona_list")
-            raise RuntimeError(f"Error when calling AFIP service: {str(e)}")
+            raise RuntimeError(f"Error when calling AFIP service: {e}") from e
 
     # Alias — generic entry point for future callers.
     def request(self, **kwargs):
@@ -148,10 +150,25 @@ def _padron_list_handler(wsn: WSN, client: zeep.Client, *, persona_ids: list) ->
         cuitRepresentada=int(ticket.number_cuit),
         idPersona=persona_ids_long,
     )
-    personas = []
-    for i, persona in enumerate(response["persona"]):
-        personas.append({persona_ids[i]: zeep.helpers.serialize_object(persona)})
-    return personas
+    # INTENTIONAL: AFIP does not promise to answer in request order, so each
+    # answer is matched by its own idPersona, never by position.
+    by_id: dict[int, object] = {}
+    for persona in response["persona"] or []:
+        data = zeep.helpers.serialize_object(persona)
+        returned_id = _returned_persona_id(data)
+        if returned_id is None:
+            raise AFIPRequestError("AFIP returned a persona without idPersona")
+        by_id[returned_id] = data
+    return [{pid: by_id.get(int(pid), {"error": "not returned by AFIP"})} for pid in persona_ids]
+
+
+def _returned_persona_id(data) -> int | None:
+    """idPersona lives in datosGenerales, or in errorConstancia when AFIP rejects the id."""
+    for section in ("datosGenerales", "errorConstancia"):
+        block = (data or {}).get(section) or {}
+        if block.get("idPersona") is not None:
+            return int(block["idPersona"])
+    return None
 
 
 @register_handler("padron_single")
@@ -169,5 +186,8 @@ def _padron_single_handler(wsn: WSN, client: zeep.Client, *, persona_ids: list) 
             )
             personas.append({pid: zeep.helpers.serialize_object(response["persona"])})
         except Exception as e:
-            personas.append({pid: e})
+            # INTENTIONAL: one bad id must not sink the batch; the error is kept
+            # as plain data so callers can serialize the result.
+            logger.warning(f"getPersona failed for one id: {e}")
+            personas.append({pid: {"error": str(e)}})
     return personas

@@ -27,4 +27,4 @@ def sign_tra(tra_xml: str, certificate, private_key) -> str:
         raise RuntimeError("CMS part not found")
     except Exception as e:
         logger.exception("Error signing TRA")
-        raise RuntimeError(f"Error when signing TRA: {str(e)}")
+        raise RuntimeError(f"Error when signing TRA: {e}") from e

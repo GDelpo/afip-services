@@ -8,9 +8,7 @@ logger = get_logger(__name__)
 
 
 def create_tra_xml(service_name: str, delta_minutes: int = 10) -> str:
-    logger.info(
-        f"Creating TRA XML for service: {service_name} with delta_minutes: {delta_minutes}"
-    )
+    logger.info(f"Creating TRA XML for service: {service_name} with delta_minutes: {delta_minutes}")
     start_time = dt.datetime.now() - dt.timedelta(minutes=delta_minutes)
     end_time = start_time + dt.timedelta(minutes=2 * delta_minutes)
     logger.debug(f"start_time: {start_time}, end_time: {end_time}")
